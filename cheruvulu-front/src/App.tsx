@@ -13,28 +13,28 @@ function App() {
   }, []);
 
   // 🔹 Fetch all users
-  const getUsers = () => {
-    fetch("http://localhost:8080/all")
-      .then(res => res.json())
-      .then(data => setUsers(data));
-  };
+  // const getUsers = () => {
+  //   fetch("http://localhost:8080/all")
+  //     .then(res => res.json())
+  //     .then(data => setUsers(data));
+  // };
 
   // 🔹 Add user
-  const addUser = () => {
-    fetch("http://localhost:8080/add", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ name: name })
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log("Saved:", data);
-        setName("");
-        getUsers(); // refresh list
-      });
-  };
+  // const addUser = () => {
+  //   fetch("http://localhost:8080/add", {
+  //     method: "POST",
+  //     headers: {
+  //       "Content-Type": "application/json"
+  //     },
+  //     body: JSON.stringify({ name: name })
+  //   })
+  //     .then(res => res.json())
+  //     .then(data => {
+  //       console.log("Saved:", data);
+  //       setName("");
+  //       getUsers(); // refresh list
+  //     });
+  // };
 
   return (
     <div style={{ padding: "20px" }}>
@@ -51,9 +51,9 @@ function App() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <button onClick={addUser}>Add User</button>
+        
       </div>
-
+{/* <button onClick={addUser}>Add User</button> */}
       {/* Load users
       <div style={{ marginTop: "20px" }}>
         <button onClick={getUsers}>Load Users</button>
