@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 function App() {
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
-  const [users, setUsers] = useState([]);
+  // const [users, setUsers] = useState([]);
 
   // 🔹 Check backend
   useEffect(() => {
