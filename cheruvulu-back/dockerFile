@@ -1,0 +1,14 @@
+# Use Java 17
+FROM openjdk:17-jdk-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy everything
+COPY . .
+
+# Build the app
+RUN chmod +x mvnw && ./mvnw clean install -DskipTests
+
+# Run the jar
+CMD ["java", "-jar", "target/*.jar"]
