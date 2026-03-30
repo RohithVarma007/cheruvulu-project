@@ -1,4 +1,4 @@
-# Use official Java 17 image
+# Use Java 17
 FROM eclipse-temurin:17-jdk
 
 # Set working directory
@@ -8,7 +8,10 @@ WORKDIR /app
 COPY . .
 
 # Build the project
-RUN chmod +x mvnw && ./mvnw clean install -DskipTests
+RUN chmod +x mvnw && ./mvnw clean package -DskipTests
+
+# Rename jar to fixed name
+RUN cp target/*.jar app.jar
 
 # Run the application
-CMD ["java", "-jar", "target/*.jar"]
+CMD ["java", "-jar", "app.jar"]
