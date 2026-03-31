@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 
+
 function App() {
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
-  // const [users, setUsers] = useState([]);
+  
+  // const API_URL = "http://localhost:8080/";
+  const API_URL = "https://cheruvulu-project.onrender.com";
 
   // 🔹 Check backend
   useEffect(() => {
-    fetch("http://localhost:8080/")
+   fetch(`${API_URL}/`)
       .then(res => res.text())
       .then(data => setMessage(data));
   }, []);
