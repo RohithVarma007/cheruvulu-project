@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Scope("request")
 @RequestMapping("")
-// @CrossOrigin(origins = "http://localhost:5173")
-@CrossOrigin(origins = "https://cheruvulu-project.vercel.app")
+@CrossOrigin(origins = "http://localhost:5173")
+// @CrossOrigin(origins = "https://cheruvulu-project.vercel.app")
 public class HomeController {
 
     @GetMapping("/")
