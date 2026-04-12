@@ -9,11 +9,11 @@ export const PONDS = [
     },
     {
         id: 3,
-        name: "Mekaladibba 7 A",
+        name: "Gunnapudi 75 A",
     },
     {
         id: 4,
-        name: "Mekaladibba 13 A",
+        name: "Kalingapeta 65 A",
     },
     {
         id: 5,
@@ -21,18 +21,18 @@ export const PONDS = [
     },
     {
         id: 6,
-        name: "Mekaladibba 3 A",
+        name: "Mekaladibba 13 A",
     },
     {
         id: 7,
-        name: "Mekaladibba 1 A",
+        name: "Mekaladibba 7 A",
     },
     {
         id: 8,
-        name: "Gunnapudi 75 A",
+        name: "Mekaladibba 3 A",
     },
     {
         id: 9,
-        name: "Kalingapeta 65 A",
+        name: "Mekaladibba 1 A",
     },
 ];

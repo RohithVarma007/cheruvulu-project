@@ -8,6 +8,7 @@ function EventBox({ text }) {
   const [newEntry, setNewEntry] = useState({
     date: "",
     feed: "",
+    labourToday: "",
     bagSize: "",
     event: "",
   });
@@ -55,6 +56,7 @@ function EventBox({ text }) {
       feed: "",
       bagSize: "",
       event: "",
+      labourToday: "",
     });
     setPond("");
     setShowModal(false);
@@ -81,7 +83,7 @@ function EventBox({ text }) {
       {showModal && (
         <div style={styles.overlay} onClick={() => setShowModal(false)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            
+
             {/* Header */}
             <div style={styles.modalHeader}>
               <h2>Daily Update</h2>
@@ -125,11 +127,25 @@ function EventBox({ text }) {
               />
 
               <input
+                type="number"
                 placeholder="Bag size"
                 style={styles.input}
                 value={newEntry.bagSize}
                 onChange={(e) =>
                   setNewEntry({ ...newEntry, bagSize: e.target.value })
+                }
+              />
+
+              <input
+                type="number"
+                placeholder="No of labour Today"
+                style={styles.input}
+                value={newEntry.labourToday}
+                onChange={(e) =>
+                  setNewEntry({
+                    ...newEntry,
+                    labourToday: (e.target.value),
+                  })
                 }
               />
 
