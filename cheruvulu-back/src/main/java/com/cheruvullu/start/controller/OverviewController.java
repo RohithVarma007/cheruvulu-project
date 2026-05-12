@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/OV")
 // @CrossOrigin(origins = "http://localhost:5173")
-@CrossOrigin(origins = "https://cheruvulu-project.vercel.app")
+@CrossOrigin(origins = "https://cheruvulu-project.onrender.com/")
 @RequiredArgsConstructor
 public class OverviewController {
 
