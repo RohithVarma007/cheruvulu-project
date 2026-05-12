@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PONDS } from "../constants/ponds";
+import { api } from "../api/api";
+import Select from "react-select";
 
-function EventBox({ text }) {
+function EventBox() {
   const [showModal, setShowModal] = useState(false);
   const [pond, setPond] = useState("");
+  const [pondType, setPondType] = useState("");
+  const [eventTypes, setEventTypes] = useState([]);
 
   const [newEntry, setNewEntry] = useState({
     date: "",
@@ -13,30 +17,74 @@ function EventBox({ text }) {
     event: "",
   });
 
-  // 🔥 Auto format date
-  const handleDateChange = (value) => {
-    let cleaned = value.replace(/\D/g, "");
+  const resetForm = () => {
+    setPond("");
+    setPondType("");
+    setEventTypes([]);
 
-    if (cleaned.length > 2 && cleaned.length <= 4) {
-      cleaned = cleaned.slice(0, 2) + "-" + cleaned.slice(2);
-    } else if (cleaned.length > 4) {
-      cleaned =
-        cleaned.slice(0, 2) +
-        "-" +
-        cleaned.slice(2, 4) +
-        "-" +
-        cleaned.slice(4, 6);
-    }
-
-    setNewEntry({ ...newEntry, date: cleaned });
+    setNewEntry({
+      date: "",
+      feed: "",
+      bagSize: "",
+      labourToday: "",
+      event: "",
+      feed7am: "",
+      feed10am: "",
+      feed1pm: "",
+      feed4pm: "",
+      rohu: "",
+      katla: "",
+      dayCount: "",
+      removedBags: "",
+      feedSize: "",
+    });
   };
 
-  // 🔥 Save handler
-  const handleSave = () => {
-    const isValidDate = /^\d{2}-\d{2}-\d{2}$/.test(newEntry.date);
 
-    if (!isValidDate) {
-      alert("Date must be in DD-MM-YY format");
+  const [events, setEvents] = useState([]);
+
+  const parseDate = (str) => {
+    const [dd, mm, yy] = str.split("-");
+    return new Date(`20${yy}`, mm - 1, dd);
+  };
+
+  const latestEvents = events
+    .sort((a, b) => parseDate(b.date) - parseDate(a.date))
+    .slice(0, 4);
+
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  const upcomingEvents = events.filter((e) => {
+    const d = parseDate(e.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).slice(0, 4);
+
+  const handleEventToggle = (type) => {
+    setEventTypes((prev) =>
+      prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const eventOptions =
+    pondType === "Fish"
+      ? [
+        { value: "trial", label: "Trial Net" },
+        { value: "deadFish", label: "Dead Fish" },
+        { value: "dob", label: "DOB" },
+      ]
+      : [
+        { value: "count", label: "Count Day" },
+
+      ];
+
+
+
+  const handleSave = async () => {
+    if (!newEntry.date) {
+      alert("Please select a valid date");
       return;
     }
 
@@ -45,21 +93,88 @@ function EventBox({ text }) {
       return;
     }
 
-    console.log("Saved Data:", {
-      pond,
-      ...newEntry,
-    });
+    if (eventTypes.length === 0) {
+      alert("Please select at least one event");
+      return;
+    }
 
-    // reset
-    setNewEntry({
-      date: "",
-      feed: "",
-      bagSize: "",
-      event: "",
-      labourToday: "",
-    });
-    setPond("");
-    setShowModal(false);
+    // 🔥 Event-specific validation
+    if (eventTypes.includes("dob") && !newEntry.dobBags) {
+      alert("Enter DOB bags");
+      return;
+    }
+
+    if (eventTypes.includes("deadFish") && (!newEntry.rohuDead && !newEntry.katlaDead)) {
+      alert("Enter dead fish count");
+      return;
+    }
+
+    if (eventTypes.includes("trial") && (!newEntry.rohu && !newEntry.katla)) {
+      alert("Enter trial values");
+      return;
+    }
+
+    if (eventTypes.includes("count") && !newEntry.dayCount) {
+      alert("Enter day count");
+      return;
+    }
+
+    try {
+      const selectedPond = PONDS.find(p => p.name === pond);
+
+      const payload = {
+        pondId: selectedPond?.id,
+        date: newEntry.date,
+        eventTypes: eventTypes.map(e => e.toUpperCase()),
+
+        labourCount: newEntry.labourToday
+          ? Number(newEntry.labourToday)
+          : null,
+
+        // shrimp feed
+        feed7am: newEntry.feed7am ? Number(newEntry.feed7am) : null,
+        feed10am: newEntry.feed10am ? Number(newEntry.feed10am) : null,
+        feed1pm: newEntry.feed1pm ? Number(newEntry.feed1pm) : null,
+        feed4pm: newEntry.feed4pm ? Number(newEntry.feed4pm) : null,
+
+        // fish trial
+        rohu: newEntry.rohu ? Number(newEntry.rohu) : null,
+        katla: newEntry.katla ? Number(newEntry.katla) : null,
+
+        // shrimp count
+        dayCount: newEntry.dayCount ? Number(newEntry.dayCount) : null,
+
+        // 🔥 NEW FIELDS
+        dobBags: newEntry.dobBags ? Number(newEntry.dobBags) : null,
+        rohuDead: newEntry.rohuDead ? Number(newEntry.rohuDead) : null,
+        katlaDead: newEntry.katlaDead ? Number(newEntry.katlaDead) : null,
+
+        // manual note
+        eventNote: newEntry.event,
+      };
+
+      console.log("🔥 Sending Payload:", payload);
+
+      const data = await api("dailyEventInput", "POST", payload);
+      console.log("✅ Saved:", data);
+
+      const entry = {
+        id: Date.now(),
+        pond,
+        pondType,
+        eventTypes,
+        ...newEntry,
+      };
+
+      setEvents((prev) => [entry, ...prev]);
+
+      resetForm();
+      setShowModal(false);
+
+    } catch (err) {
+      console.error(err);
+      alert("Error saving data");
+    }
   };
 
   return (
@@ -74,14 +189,52 @@ function EventBox({ text }) {
           </button>
         </div>
 
-        <div style={styles.marquee}>
-          <p style={styles.text}>{text}</p>
+        {/* 🔥 Event Content */}
+        <div style={styles.eventWrapper}>
+
+          {/* Latest Events
+          <div style={styles.card}>
+            <h4 style={styles.cardTitle}>Latest Updates</h4>
+
+            <ul style={styles.list}>
+              {latestEvents.length === 0 ? (
+                <li>No data</li>
+              ) : (
+                latestEvents.map((e, i) => (
+                  <li key={e.id}>
+                    {i + 1}. {e.event || "Update"} - {e.pond}
+                    {e.feed && ` (${e.feed} bags)`}
+                  </li>
+                ))
+              )}
+            </ul>
+          </div> */}
+
+          {/* Upcoming Events */}
+          <div style={styles.card}>
+            <h4 style={styles.cardTitle}>Upcoming Events</h4>
+
+            <ul style={styles.list}>
+              {upcomingEvents.length === 0 ? (
+                <li>No upcoming</li>
+              ) : (
+                upcomingEvents.map((e) => (
+                  <div key={e.id} style={styles.gridItem}>
+                    <div style={styles.date}>{e.date}</div>
+                    <div>{e.event || (e.eventTypes?.join(", ")) || "Event"}</div>
+                    <div style={styles.pond}>({e.pond})</div>
+                  </div>
+                ))
+              )}
+            </ul>
+          </div>
+
         </div>
       </div>
 
       {/* 🔥 Modal */}
       {showModal && (
-        <div style={styles.overlay} onClick={() => setShowModal(false)}>
+        <div style={styles.overlay} onClick={() => { resetForm(); setShowModal(false) }}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
 
             {/* Header */}
@@ -97,10 +250,17 @@ function EventBox({ text }) {
 
             {/* Form */}
             <div style={styles.form}>
+
+              {/* 🔥 SELECT POND */}
               <select
                 style={styles.input}
                 value={pond}
-                onChange={(e) => setPond(e.target.value)}
+                onChange={(e) => {
+                  const selected = PONDS.find(p => p.name === e.target.value);
+                  setPond(e.target.value);
+                  setPondType(selected?.cropType);
+                  setEventTypes([]); // reset event
+                }}
               >
                 <option value="">Select Pond</option>
                 {PONDS.map((p) => (
@@ -110,44 +270,222 @@ function EventBox({ text }) {
                 ))}
               </select>
 
+              {/* 🔥 DATE */}
               <input
-                placeholder="DD-MM-YY"
+                type="date"
                 style={styles.input}
                 value={newEntry.date}
-                onChange={(e) => handleDateChange(e.target.value)}
-              />
-
-              <input
-                placeholder="Feed in bags"
-                style={styles.input}
-                value={newEntry.feed}
                 onChange={(e) =>
-                  setNewEntry({ ...newEntry, feed: e.target.value })
+                  setNewEntry({ ...newEntry, date: e.target.value })
                 }
               />
 
-              <input
-                type="number"
-                placeholder="Bag size"
-                style={styles.input}
-                value={newEntry.bagSize}
-                onChange={(e) =>
-                  setNewEntry({ ...newEntry, bagSize: e.target.value })
-                }
-              />
+              {pondType === "Fish" && (
+                <>
+                  <input
+                    placeholder="Feed in bags"
+                    style={styles.input}
+                    value={newEntry.feed}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, feed: e.target.value })
+                    }
+                  />
 
+                  {/* <input
+                    type="number"
+                    placeholder="Bag size"
+                    style={styles.input}
+                    value={newEntry.bagSize}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, bagSize: e.target.value })
+                    }
+                  /> */}
+                </>
+              )}
+
+              {pondType === "Shrimp" && (
+                <div style={styles.feedRow}>
+                  <input
+                    placeholder="7 AM"
+                    style={styles.feedInput}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, feed7am: e.target.value })
+                    }
+                  />
+
+                  <input
+                    placeholder="10 AM"
+                    style={styles.feedInput}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, feed10am: e.target.value })
+                    }
+                  />
+
+                  <input
+                    placeholder="1 PM"
+                    style={styles.feedInput}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, feed1pm: e.target.value })
+                    }
+                  />
+
+                  <input
+                    placeholder="4 PM"
+                    style={styles.feedInput}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, feed4pm: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              {/* 🔥 COMMON */}
               <input
                 type="number"
                 placeholder="No of labour Today"
                 style={styles.input}
                 value={newEntry.labourToday}
                 onChange={(e) =>
-                  setNewEntry({
-                    ...newEntry,
-                    labourToday: (e.target.value),
-                  })
+                  setNewEntry({ ...newEntry, labourToday: e.target.value })
                 }
               />
+
+              <Select
+                isMulti
+                placeholder="Event Type"
+                options={eventOptions}
+                value={eventOptions.filter(o => eventTypes.includes(o.value))}
+                onChange={(selected) =>
+                  setEventTypes(selected ? selected.map(s => s.value) : [])
+                }
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: "#3f3f3f",
+                    border: "1px solid #ddd",
+                    borderRadius: "6px",
+                    minHeight: "38px",   // ↓ reduced height
+                    height: "38px",
+                    boxShadow: "none",
+                  }),
+
+                  valueContainer: (base) => ({
+                    ...base,
+                    padding: "0 10px",   // align like input
+                    display: "flex",
+                    alignItems: "center",
+                  }),
+
+                  input: (base) => ({
+                    ...base,
+                    margin: "0px",
+                    padding: "0px",
+                    color: "#fff",
+                  }),
+
+                  placeholder: (base) => ({
+                    ...base,
+                    color: "#ccc",
+                    margin: 0,
+                    padding: 0,
+                    maxWidth: "80%",     // limits width
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }),
+
+                  multiValue: (base) => ({
+                    ...base,
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    margin: "2px",
+                  }),
+
+                  multiValueLabel: (base) => ({
+                    ...base,
+                    color: "#fff",
+                  }),
+
+                  indicatorsContainer: (base) => ({
+                    ...base,
+                    height: "38px",
+                  }),
+
+                  menu: (base) => ({
+                    ...base,
+                    zIndex: 9999,
+                  }),
+                }}
+              />
+
+              {/* 🔥 EVENT BASED INPUTS */}
+
+              {/* Fish → Trial Net */}
+              {eventTypes.includes("trial") && (
+                <>
+                  {/* <h4>Trial Net</h4> */}
+                  <input
+                    placeholder="Rohu (R)"
+                    style={styles.input}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, rohu: e.target.value })
+                    }
+                  />
+                  <input
+                    placeholder="Katla (K)"
+                    style={styles.input}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, katla: e.target.value })
+                    }
+                  />
+                </>
+              )}
+
+              {eventTypes.includes("dob") && (
+                <div>
+                  {/* <h4>DOB</h4> */}
+                  <input
+                    placeholder="No of DOB Bags"
+                    style={{ ...styles.input, width: "94%" }}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, dobBags: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+              {eventTypes.includes("deadFish") && (
+                <div>
+                  {/* <h4>Dead Fish</h4> */}
+                  <input
+                    placeholder="Rohu Dead No"
+                    style={{ ...styles.input, width: "94%" }}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, rohuDead: e.target.value })
+                    }
+                  />
+                  <input
+                    placeholder="Katla Dead No"
+                    style={{ ...styles.input, width: "94%" }}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, katlaDead: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Shrimp → Count Day */}
+              {eventTypes.includes("count") && (
+                <>
+                  {/* <h4>Count Day</h4> */}
+                  <input
+                    placeholder="Day Count"
+                    style={styles.input}
+                    onChange={(e) =>
+                      setNewEntry({ ...newEntry, dayCount: e.target.value })
+                    }
+                  />
+                </>
+              )}
 
               <input
                 placeholder="Event"
@@ -157,13 +495,14 @@ function EventBox({ text }) {
                   setNewEntry({ ...newEntry, event: e.target.value })
                 }
               />
+
             </div>
 
             {/* Actions */}
             <div style={styles.actions}>
               <button
                 style={styles.cancel}
-                onClick={() => setShowModal(false)}
+                onClick={() => { resetForm(); setShowModal(false) }}
               >
                 Cancel
               </button>
@@ -172,10 +511,10 @@ function EventBox({ text }) {
                 Save
               </button>
             </div>
+
           </div>
         </div>
-      )}
-    </>
+      )}   </>
   );
 }
 
@@ -183,13 +522,36 @@ const styles = {
   container: {
     marginTop: "-6px",
     padding: "15px",
-    backgroundColor: "#2d9dc8",
+    backgroundColor: "#588db1",
     border: "1px solid #ddd",
     borderRadius: "8px",
     color: "#fff",
     overflow: "hidden",
   },
+  gridList: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr", // 🔥 2 columns
+    gap: "8px",
+    marginTop: "8px",
+  },
 
+  gridItem: {
+    background: "#f1f5f9",
+    padding: "8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+  },
+
+  date: {
+    fontWeight: "bold",
+    color: "#2563eb",
+    fontSize: "12px",
+  },
+
+  pond: {
+    fontSize: "11px",
+    color: "#555",
+  },
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -206,17 +568,32 @@ const styles = {
     fontWeight: "bold",
   },
 
-  marquee: {
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    position: "relative",
-    marginTop: "8px",
+  eventWrapper: {
+    display: "grid",
+    // gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+    marginTop: "12px",
   },
 
-  text: {
-    display: "inline-block",
-    paddingLeft: "100%",
-    animation: "scrollText 25s linear infinite",
+  card: {
+    background: "#ffffff",
+    color: "#111",
+    borderRadius: "10px",
+    padding: "10px",
+  },
+
+  cardTitle: {
+    margin: "0 0 8px 0",
+    fontSize: "14px",
+    fontWeight: "bold",
+    color: "#527d8d",
+  },
+
+  list: {
+    margin: 0,
+    paddingLeft: "15px",
+    fontSize: "13px",
+    lineHeight: "1.6",
   },
 
   event1: {
@@ -290,6 +667,20 @@ const styles = {
     borderRadius: "6px",
     cursor: "pointer",
     color: "#111827",
+  },
+
+  feedRow: {
+    display: "flex",
+    gap: "2px",
+    // overflowX: "auto",  
+  },
+
+  feedInput: {
+    minWidth: "80px",
+    padding: "8px",
+    border: "1px solid #ddd",
+    borderRadius: "6px",
+    textAlign: "center",
   },
 };
 

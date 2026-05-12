@@ -2,10 +2,12 @@ export const PONDS = [
     {
         id: 1,
         name: "Mekaladibba 70 A",
+        cropType:"Fish",
     },
     {
         id: 2,
         name: "Mekaladibba 80 A",
+        cropType:"Shrimp",
     },
     {
         id: 3,

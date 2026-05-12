@@ -4,6 +4,7 @@ import "./App.css";
 import EventBox from "./components/EventBox";
 import InfoCards from "./components/InfoCards";
 import Farmers from "./pages/Farmers";
+import Events from "./pages/Events";
 
 function App() {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ function App() {
             path="/"
             element={
               <>
-                <EventBox text="Shrimp harvest completed 🎉 | Feed updated | Water quality good ✅" />
+                <EventBox/>
 
                 <div className="dashboard">
                   {/* LEFT */}
@@ -75,7 +76,7 @@ function App() {
           <Route path="/farmers" element={<Farmers />} />
 
           {/* ✅ Events */}
-          <Route path="/events" element={<h2>Events Page</h2>} />
+          <Route path="/events" element={<Events />} />
         </Routes>
       </div>
     </div>
