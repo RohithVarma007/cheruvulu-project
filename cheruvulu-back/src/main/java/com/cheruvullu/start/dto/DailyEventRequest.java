@@ -1,8 +1,7 @@
 package com.cheruvullu.start.dto;
 
 import java.time.LocalDate;
-
-import com.cheruvullu.start.constants.EventType;
+import java.util.List;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -19,7 +18,7 @@ public class DailyEventRequest {
     @NotNull(message = "Date is required")
     private LocalDate date;
 
-    private EventType eventType; // optional
+    private List<String> eventTypes; // optional
 
     @Min(value = 0, message = "Labour count cannot be negative")
     private Integer labourCount;
@@ -39,5 +38,6 @@ public class DailyEventRequest {
     private Integer rohuDead;
     private Integer katlaDead;
     private Integer dobBags;
+    private Integer bagsPerDay;
 
 }

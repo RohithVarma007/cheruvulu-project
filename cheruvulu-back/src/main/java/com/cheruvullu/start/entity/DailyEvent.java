@@ -2,8 +2,6 @@ package com.cheruvullu.start.entity;
 
 import java.time.LocalDate;
 
-import com.cheruvullu.start.constants.EventType;
-
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,8 +21,8 @@ public class DailyEvent {
     private Pond pond;
 
     private LocalDate date;
-    @Enumerated(EnumType.STRING)
-    private EventType eventType;
+    @Column(columnDefinition = "TEXT")
+    private String eventType;
     private String eventNote;
     private Integer labourCount;
 }

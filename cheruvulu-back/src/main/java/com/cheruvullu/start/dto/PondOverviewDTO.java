@@ -1,5 +1,7 @@
 package com.cheruvullu.start.dto;
 
+import java.time.LocalDate;
+
 import lombok.*;
 
 @Getter
@@ -23,5 +25,5 @@ public class PondOverviewDTO {
     private Double previousKatla;
     
     private String cropType;
-
+    private LocalDate startDate;
 }

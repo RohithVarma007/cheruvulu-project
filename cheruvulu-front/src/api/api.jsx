@@ -1,8 +1,12 @@
 // const BASE_URL = "http://localhost:8080/";
 const BASE_URL = "https://cheruvulu-project.onrender.com/";
 
-// 🔥 generic API handler
-export const api = async (endpoint, method = "GET", body = null) => {
+export const api = async (
+  endpoint,
+  method = "GET",
+  body = null
+) => {
+
   const options = {
     method,
     headers: {
@@ -14,15 +18,29 @@ export const api = async (endpoint, method = "GET", body = null) => {
     options.body = JSON.stringify(body);
   }
 
-  const url = `${BASE_URL + "OV/"}${endpoint}`;
-  console.log("🔥 API CALL:", url);   // 👈 ADD THIS
+  const url = `${BASE_URL}${endpoint}`;
+
+  console.log("🔥 API CALL:", url);
 
   const res = await fetch(url, options);
 
+  // 🔥 HANDLE ERROR
   if (!res.ok) {
+
     const text = await res.text();
+
     throw new Error(text || "API Error");
   }
 
-  return res.json();
+  // 🔥 SAFELY HANDLE EMPTY RESPONSE
+  const text = await res.text();
+
+  try {
+
+    return text ? JSON.parse(text) : {};
+
+  } catch {
+
+    return text;
+  }
 };

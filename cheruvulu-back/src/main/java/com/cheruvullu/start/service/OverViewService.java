@@ -1,6 +1,6 @@
 package com.cheruvullu.start.service;
 
-import com.cheruvullu.start.constants.EventType;
+import com.cheruvullu.start.dto.AddPondRequest;
 import com.cheruvullu.start.dto.DailyEventRequest;
 import com.cheruvullu.start.dto.OverviewDTO;
 import com.cheruvullu.start.dto.PondOverviewDTO;
@@ -9,11 +9,13 @@ import com.cheruvullu.start.entity.FishGrowth;
 import com.cheruvullu.start.entity.InvestmentHistory;
 import com.cheruvullu.start.entity.Pond;
 import com.cheruvullu.start.entity.ShrimpFeed;
+import com.cheruvullu.start.entity.UpcomingEvents;
 import com.cheruvullu.start.repository.DailyEventRepository;
 import com.cheruvullu.start.repository.FishGrowthRepository;
 import com.cheruvullu.start.repository.InvestmentHistoryRepository;
 import com.cheruvullu.start.repository.PondRepository;
 import com.cheruvullu.start.repository.ShrimpFeedRepository;
+import com.cheruvullu.start.repository.UpcomingEventsRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +35,7 @@ public class OverViewService {
     private final FishGrowthRepository fishGrowthRepository;
     private final ShrimpFeedRepository sfeedRepository;
     private final InvestmentHistoryRepository investmentHistoryRepository;
+    private final UpcomingEventsRepository upcomingEventsRepository;
 
     public DailyEvent save(DailyEventRequest req) {
 
@@ -40,28 +44,84 @@ public class OverViewService {
         Pond pond = pondRepository.findById(req.getPondId())
                 .orElseThrow(() -> new RuntimeException("Pond not found"));
 
-        EventType type = req.getEventType();
-
         String note = buildEventNote(req);
 
         DailyEvent event = new DailyEvent();
         event.setPond(pond);
         event.setDate(req.getDate());
-        event.setEventType(type);
+
+        // 🔥 convert enum list to comma separated string
+        event.setEventType(
+                String.join(",", req.getEventTypes()));
+
         event.setLabourCount(req.getLabourCount());
         event.setEventNote(note);
 
-        // -------- Fish Growth --------
-        if (type == EventType.TRIAL) {
+        // =====================================================
+        // 🔥 DAILY DOB REDUCTION
+        // =====================================================
+
+        if (req.getBagsPerDay() != null && req.getBagsPerDay() > 0) {
+
+            Integer currentDob = pond.getDobBags() == null ? 0 : pond.getDobBags();
+
+            // 🔥 validation
+            if (req.getBagsPerDay() > currentDob) {
+                throw new RuntimeException(
+                        "DOB are less than the feed bags you entered");
+            }
+
+            Integer bags = currentDob - req.getBagsPerDay();
+
+            pond.setDobBags(bags);
+
+            // 🔥 fetch existing DOB_LOW event
+            UpcomingEvents upEvent = upcomingEventsRepository.findByPondIdAndType(
+                    pond.getId(),
+                    "DOB_LOW");
+
+            // 🔥 create/update event
+            if (bags < 500) {
+
+                if (upEvent == null) {
+                    upEvent = new UpcomingEvents();
+                    upEvent.setPond(pond);
+                    upEvent.setType("DOB_LOW");
+                }
+
+                upEvent.setNote(
+                        pond.getName() + " DOB are only " + bags);
+
+                upcomingEventsRepository.save(upEvent);
+
+            } else {
+
+                // 🔥 remove old event if stock normal
+                if (upEvent != null) {
+                    upcomingEventsRepository.delete(upEvent);
+                }
+            }
+        }
+
+        // =====================================================
+        // 🔥 FISH GROWTH
+        // =====================================================
+
+        if (req.getEventTypes().contains("TRIAL")) {
+
             FishGrowth fishGrowth = new FishGrowth();
             fishGrowth.setRohuGrams(req.getRohu());
             fishGrowth.setKatlaGrams(req.getKatla());
             fishGrowth.setDate(req.getDate());
             fishGrowth.setPond(pond);
+
             fishGrowthRepository.save(fishGrowth);
         }
 
-        // -------- Shrimp Feed --------
+        // =====================================================
+        // 🔥 SHRIMP FEED
+        // =====================================================
+
         ShrimpFeed sFeed = new ShrimpFeed();
         sFeed.setFeed7am(req.getFeed7am());
         sFeed.setFeed10am(req.getFeed10am());
@@ -70,25 +130,73 @@ public class OverViewService {
         sFeed.setDate(req.getDate());
         sFeed.setPond(pond);
 
-        // -------- DOB & Dead FIsh ------
+        // =====================================================
+        // 🔥 MANUAL DOB ADDITION
+        // =====================================================
+
         if (req.getDobBags() != null) {
-            pond.setDobBags(pond.getDobBags() + req.getDobBags());
-        }
-        if (req.getRohuDead() != null) {
-            pond.setRohuDead(pond.getRohuDead() + req.getRohuDead());
-        }
-        if (req.getKatlaDead() != null) {
-            pond.setKatlaDead(pond.getKatlaDead() + req.getKatlaDead());
+
+            pond.setDobBags(
+                    (pond.getDobBags() == null ? 0 : pond.getDobBags())
+                            + req.getDobBags());
+
+            Integer updatedDob = pond.getDobBags();
+
+            UpcomingEvents upEvent = upcomingEventsRepository.findByPondIdAndType(
+                    pond.getId(),
+                    "DOB_LOW");
+
+            if (updatedDob < 500) {
+
+                if (upEvent == null) {
+                    upEvent = new UpcomingEvents();
+                    upEvent.setPond(pond);
+                    upEvent.setType("DOB_LOW");
+                }
+
+                upEvent.setNote(
+                        pond.getName() + " DOB are only " + updatedDob);
+
+                upcomingEventsRepository.save(upEvent);
+
+            } else {
+
+                if (upEvent != null) {
+                    upcomingEventsRepository.delete(upEvent);
+                }
+            }
         }
 
-        if (type == EventType.COUNT) {
+        // =====================================================
+        // 🔥 DEAD FISH
+        // =====================================================
+
+        if (req.getRohuDead() != null) {
+            pond.setRohuDead(
+                    (pond.getRohuDead() == null ? 0 : pond.getRohuDead())
+                            + req.getRohuDead());
+        }
+
+        if (req.getKatlaDead() != null) {
+            pond.setKatlaDead(
+                    (pond.getKatlaDead() == null ? 0 : pond.getKatlaDead())
+                            + req.getKatlaDead());
+        }
+
+        // =====================================================
+        // 🔥 SHRIMP COUNT
+        // =====================================================
+
+        if (req.getEventTypes().contains("COUNT")) {
             sFeed.setShrimpCount(req.getDayCount());
         }
 
-        boolean hasFeed = req.getFeed7am() != null || req.getFeed10am() != null
-                || req.getFeed1pm() != null || req.getFeed4pm() != null;
+        boolean hasFeed = req.getFeed7am() != null ||
+                req.getFeed10am() != null ||
+                req.getFeed1pm() != null ||
+                req.getFeed4pm() != null;
 
-        if (hasFeed || type == EventType.COUNT) {
+        if (hasFeed || req.getEventTypes().contains("COUNT")) {
             sfeedRepository.save(sFeed);
         }
 
@@ -107,14 +215,14 @@ public class OverViewService {
             throw new RuntimeException("Date is required");
         }
 
-        if (req.getEventType() == EventType.TRIAL) {
+        if (req.getEventTypes().contains("TRIAL")) {
             if (req.getRohu() == null || req.getRohu() <= 0
                     || req.getKatla() == null || req.getKatla() <= 0) {
                 throw new RuntimeException("Rohu and Katla are required for trial");
             }
         }
 
-        else if (req.getEventType() == EventType.COUNT)
+        else if (req.getEventTypes().contains("COUNT"))
 
         {
             if (req.getDayCount() == null) {
@@ -135,13 +243,17 @@ public class OverViewService {
 
     private String buildEventNote(DailyEventRequest req) {
 
-        if (req.getEventType() == EventType.TRIAL) {
-            return "Trial Net → Rohu: " + req.getRohu() + " gms, Katla: " + req.getKatla() + " gms";
+        if (req.getEventTypes().contains("TRIAL")) {
 
-        } else if (req.getEventType() == EventType.COUNT) {
+            return "Trial Net → Rohu: " + req.getRohu()
+                    + " gms, Katla: " + req.getKatla() + " gms";
+
+        } else if (req.getEventTypes().contains("COUNT")) {
+
             return "Count Day → Day: " + req.getDayCount();
 
         } else {
+
             return req.getEventNote();
         }
     }
@@ -150,12 +262,13 @@ public class OverViewService {
 
         List<Pond> ponds = pondRepository.findByStartDateIsNotNull();
         List<PondOverviewDTO> result = new ArrayList<>();
+        List<UpcomingEvents> events = upcomingEventsRepository.findAll();
 
         double grandTotal = 0;
 
         for (Pond pond : ponds) {
 
-            List<FishGrowth> growthList = fishGrowthRepository.findTop2ByPondIdOrderByDateDesc(pond.getId());
+            List<FishGrowth> growthList = fishGrowthRepository.findTop2ByPondIdOrderByIdDesc(pond.getId());
 
             Integer shrimpCount = sfeedRepository.getShrimpCount(pond.getId());
 
@@ -182,6 +295,7 @@ public class OverViewService {
 
             dto.setTotalInvestment(investment);
             dto.setCropType(pond.getCropType());
+            dto.setStartDate(pond.getStartDate());
 
             // 🔥 grand total
             grandTotal += investment;
@@ -196,7 +310,7 @@ public class OverViewService {
             result.add(dto);
         }
 
-        return new OverviewDTO(grandTotal, result);
+        return new OverviewDTO(grandTotal, result, events);
     }
 
     public Pond getPondById(Long id) {
@@ -205,7 +319,7 @@ public class OverViewService {
     }
 
     public List<FishGrowth> getFishGrowthById(Long id) {
-        return fishGrowthRepository.findByPondId(id);
+        return fishGrowthRepository.findByPondIdOrderByIdDesc(id);
     }
 
     public List<ShrimpFeed> getShrimpFeedById(Long id) {
@@ -216,12 +330,93 @@ public class OverViewService {
         return investmentHistoryRepository.findByPondId(id);
     }
 
+    @Transactional
     public Map<String, Object> saveInvestment(InvestmentHistory entity) {
         InvestmentHistory saved = investmentHistoryRepository.save(entity);
+
+        Pond pond = pondRepository.findById(entity.getPond().getId())
+                .orElseThrow(() -> new RuntimeException("Pond not found"));
+        pond.setTotalInvestment(
+                (pond.getTotalInvestment() == null ? 0.0 : pond.getTotalInvestment()) + entity.getAmount());
+        pondRepository.save(pond);
 
         return Map.of(
                 "message", "Investment saved successfully",
                 "data", saved);
+    }
+
+    public void fishgrowth(FishGrowth entity) {
+        fishGrowthRepository.save(entity);
+
+        DailyEvent event = new DailyEvent();
+        event.setPond(entity.getPond());
+        event.setDate(entity.getDate());
+        event.setEventType("TRIAL");
+        event.setEventNote("Added from Pond Trail Net Option");
+        dailyEventRepository.save(event);
+
+    }
+
+    public Pond addPond(AddPondRequest req) {
+
+        Pond pond = pondRepository.findById(req.getPondId())
+                .orElseThrow(() -> new RuntimeException("Pond not found"));
+
+        pond.setCropType(req.getCropType());
+        pond.setStartDate(req.getStartDate());
+
+        // fish stock
+        pond.setRohuStock(req.getRohuStock() == null ? 0 : req.getRohuStock());
+        pond.setKatlaStock(req.getKatlaStock() == null ? 0 : req.getKatlaStock());
+
+        // dob
+        Integer updatedDob = req.getDobBags();
+        UpcomingEvents upEvent = upcomingEventsRepository.findByPondIdAndType(
+                pond.getId(),
+                "DOB_LOW");
+
+        if (updatedDob < 500) {
+
+            if (upEvent == null) {
+                upEvent = new UpcomingEvents();
+                upEvent.setPond(pond);
+                upEvent.setType("DOB_LOW");
+            }
+
+            upEvent.setNote(
+                    pond.getName() + " DOB are only " + updatedDob);
+
+            upcomingEventsRepository.save(upEvent);
+
+        } else {
+
+            if (upEvent != null) {
+                upcomingEventsRepository.delete(upEvent);
+            }
+        }
+        pond.setDobBags(req.getDobBags() == null ? 0 : req.getDobBags());
+        pond.setRohuDead(0);
+        pond.setKatlaDead(0);
+        pond.setLeftStock(0);
+        pond.setTotalFeedShrimp(0);
+
+        Pond savedPond = pondRepository.save(pond);
+
+        // 🔥 save initial fish growth
+        if ("Fish".equalsIgnoreCase(req.getCropType())) {
+
+            FishGrowth growth = new FishGrowth();
+
+            growth.setPond(savedPond);
+            growth.setDate(req.getStartDate());
+
+            growth.setRohuGrams(req.getRohuGrams() == null ? 0 : req.getRohuGrams());
+            growth.setKatlaGrams(req.getKatlaGrams() == null ? 0 : req.getKatlaGrams());
+
+            fishGrowthRepository.save(growth);
+        }
+
+        return savedPond;
     }
 
 }

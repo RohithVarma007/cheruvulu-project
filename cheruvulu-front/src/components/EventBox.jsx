@@ -3,11 +3,12 @@ import { PONDS } from "../constants/ponds";
 import { api } from "../api/api";
 import Select from "react-select";
 
-function EventBox() {
+function EventBox({ overview }) {
   const [showModal, setShowModal] = useState(false);
   const [pond, setPond] = useState("");
   const [pondType, setPondType] = useState("");
   const [eventTypes, setEventTypes] = useState([]);
+  const upcomingEvents = overview?.events || [];
 
   const [newEntry, setNewEntry] = useState({
     date: "",
@@ -55,10 +56,6 @@ function EventBox() {
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
-  const upcomingEvents = events.filter((e) => {
-    const d = parseDate(e.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  }).slice(0, 4);
 
   const handleEventToggle = (type) => {
     setEventTypes((prev) =>
@@ -80,6 +77,26 @@ function EventBox() {
 
       ];
 
+  const [showAddPondModal, setShowAddPondModal] = useState(false);
+
+  const [newPond, setNewPond] = useState({
+    pondName: "",
+    cropType: "",
+    startDate: "",
+    rohuStock: "",
+    katlaStock: "",
+    dobBags: "",
+    rohuGrams: "",
+    katlaGrams: "",
+  });
+
+  const availablePonds = PONDS.filter(
+    p =>
+      !overview?.ponds?.some(
+        op => op.pondName === p.name
+      )
+  );
+
 
 
   const handleSave = async () => {
@@ -93,10 +110,10 @@ function EventBox() {
       return;
     }
 
-    if (eventTypes.length === 0) {
-      alert("Please select at least one event");
-      return;
-    }
+    // if (eventTypes.length === 0) {
+    //   alert("Please select at least one event");
+    //   return;
+    // }
 
     // 🔥 Event-specific validation
     if (eventTypes.includes("dob") && !newEntry.dobBags) {
@@ -120,12 +137,16 @@ function EventBox() {
     }
 
     try {
-      const selectedPond = PONDS.find(p => p.name === pond);
+      const selectedPond = overview?.ponds?.find(
+        p => p.pondName === pond
+      );
 
       const payload = {
-        pondId: selectedPond?.id,
+        pondId: selectedPond?.pondId,
         date: newEntry.date,
         eventTypes: eventTypes.map(e => e.toUpperCase()),
+        bagsPerDay: newEntry.bagsPerDay,
+
 
         labourCount: newEntry.labourToday
           ? Number(newEntry.labourToday)
@@ -155,7 +176,7 @@ function EventBox() {
 
       console.log("🔥 Sending Payload:", payload);
 
-      const data = await api("dailyEventInput", "POST", payload);
+      const data = await api("OV/dailyEventInput", "POST", payload);
       console.log("✅ Saved:", data);
 
       const entry = {
@@ -184,11 +205,22 @@ function EventBox() {
         <div style={styles.header}>
           <h3 style={styles.event1}>📢 Latest Event</h3>
 
-          <button style={styles.button} onClick={() => setShowModal(true)}>
-            Daily Update
-          </button>
-        </div>
+          <div style={styles.headerButtons}>
+            <button
+              style={styles.button}
+              onClick={() => setShowModal(true)}
+            >
+              Daily Update
+            </button>
 
+            <button
+              style={styles.moreButton}
+              onClick={() => setShowAddPondModal(true)}
+            >
+              ⋮
+            </button>
+          </div>
+        </div>
         {/* 🔥 Event Content */}
         <div style={styles.eventWrapper}>
 
@@ -214,19 +246,40 @@ function EventBox() {
           <div style={styles.card}>
             <h4 style={styles.cardTitle}>Upcoming Events</h4>
 
-            <ul style={styles.list}>
-              {upcomingEvents.length === 0 ? (
-                <li>No upcoming</li>
-              ) : (
-                upcomingEvents.map((e) => (
-                  <div key={e.id} style={styles.gridItem}>
-                    <div style={styles.date}>{e.date}</div>
-                    <div>{e.event || (e.eventTypes?.join(", ")) || "Event"}</div>
-                    <div style={styles.pond}>({e.pond})</div>
-                  </div>
-                ))
-              )}
-            </ul>
+            {upcomingEvents.length === 0 ? (
+              <div>No upcoming events</div>
+            ) : (
+              <ul style={styles.eventList}>
+                {upcomingEvents.map((e, index) => {
+
+                  // 🔥 split text and numbers
+                  const parts = e.note.split(/(\d+)/g);
+
+                  return (
+                    <li key={e.id} style={styles.eventItem}>
+
+                      {parts.map((part, i) => {
+
+                        const isNumber = /^\d+$/.test(part);
+
+                        return (
+                          <span
+                            key={i}
+                            style={{
+                              color: isNumber ? "#dc2626" : "#111",
+                              fontWeight: isNumber ? "700" : "400",
+                            }}
+                          >
+                            {part}
+                          </span>
+                        );
+                      })}
+
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
 
         </div>
@@ -256,16 +309,18 @@ function EventBox() {
                 style={styles.input}
                 value={pond}
                 onChange={(e) => {
-                  const selected = PONDS.find(p => p.name === e.target.value);
+                  const selected = overview?.ponds?.find(
+                    p => p.pondName === e.target.value
+                  );
                   setPond(e.target.value);
                   setPondType(selected?.cropType);
                   setEventTypes([]); // reset event
                 }}
               >
                 <option value="">Select Pond</option>
-                {PONDS.map((p) => (
-                  <option key={p.id} value={p.name}>
-                    {p.name}
+                {overview?.ponds?.map((p) => (
+                  <option key={p.pondId} value={p.pondName}>
+                    {p.pondName}
                   </option>
                 ))}
               </select>
@@ -285,9 +340,9 @@ function EventBox() {
                   <input
                     placeholder="Feed in bags"
                     style={styles.input}
-                    value={newEntry.feed}
+                    value={newEntry.bagsPerDay}
                     onChange={(e) =>
-                      setNewEntry({ ...newEntry, feed: e.target.value })
+                      setNewEntry({ ...newEntry, bagsPerDay: e.target.value })
                     }
                   />
 
@@ -514,7 +569,268 @@ function EventBox() {
 
           </div>
         </div>
-      )}   </>
+      )}
+
+      {/* 🔥 ADD POND MODAL */}
+      {showAddPondModal && (
+        <div
+          style={styles.overlay}
+          onClick={() => setShowAddPondModal(false)}
+        >
+          <div
+            style={styles.modal}
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <div style={styles.modalHeader}>
+              <h2>Add Pond</h2>
+
+              <button
+                style={styles.closeIcon}
+                onClick={() => setShowAddPondModal(false)}
+              >
+                ✖
+              </button>
+            </div>
+
+            <div style={styles.form}>
+
+              {/* Pond Dropdown */}
+              <select
+                style={styles.input}
+                value={newPond.pondName}
+                onChange={(e) =>
+                  setNewPond({
+                    ...newPond,
+                    pondName: e.target.value,
+                  })
+                }
+              >
+                <option value="">Select Pond</option>
+
+                {availablePonds.map((p) => (
+                  <option key={p.id} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Crop Type */}
+              <select
+                style={styles.input}
+                value={newPond.cropType}
+                onChange={(e) =>
+                  setNewPond({
+                    ...newPond,
+                    cropType: e.target.value,
+                  })
+                }
+              >
+                <option value="">Select Crop Type</option>
+                <option value="Fish">Fish</option>
+                <option value="Shrimp">Shrimp</option>
+              </select>
+
+              {/* Start Date */}
+              <input
+                type="date"
+                style={styles.input}
+                value={newPond.startDate}
+                onChange={(e) =>
+                  setNewPond({
+                    ...newPond,
+                    startDate: e.target.value,
+                  })
+                }
+              />
+
+              {/* Fish Fields */}
+              {newPond.cropType === "Fish" && (
+                <>
+                  <input
+                    type="number"
+                    placeholder="Rohu Stock"
+                    style={styles.input}
+                    value={newPond.rohuStock}
+                    onChange={(e) =>
+                      setNewPond({
+                        ...newPond,
+                        rohuStock: e.target.value,
+                      })
+                    }
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="Katla Stock"
+                    style={styles.input}
+                    value={newPond.katlaStock}
+                    onChange={(e) =>
+                      setNewPond({
+                        ...newPond,
+                        katlaStock: e.target.value,
+                      })
+                    }
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="DOB Bags (Optional)"
+                    style={styles.input}
+                    value={newPond.dobBags}
+                    onChange={(e) =>
+                      setNewPond({
+                        ...newPond,
+                        dobBags: e.target.value,
+                      })
+                    }
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="Rohu Size (grams)"
+                    style={styles.input}
+                    value={newPond.rohuGrams}
+                    onChange={(e) =>
+                      setNewPond({
+                        ...newPond,
+                        rohuGrams: e.target.value,
+                      })
+                    }
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="Katla Size (grams)"
+                    style={styles.input}
+                    value={newPond.katlaGrams}
+                    onChange={(e) =>
+                      setNewPond({
+                        ...newPond,
+                        katlaGrams: e.target.value,
+                      })
+                    }
+                  />
+                </>
+              )}
+
+              {/* Shrimp */}
+              {newPond.cropType === "Shrimp" && (
+                <input
+                  type="number"
+                  placeholder="DOB Bags"
+                  style={styles.input}
+                  value={newPond.dobBags}
+                  onChange={(e) =>
+                    setNewPond({
+                      ...newPond,
+                      dobBags: e.target.value,
+                    })
+                  }
+                />
+              )}
+            </div>
+
+            <div style={styles.actions}>
+              <button
+                style={styles.cancel}
+                onClick={() => setShowAddPondModal(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                style={styles.save}
+                onClick={async () => {
+
+                  try {
+
+                    // 🔥 COMMON VALIDATION
+                    if (!newPond.pondName) {
+                      alert("Please select pond");
+                      return;
+                    }
+
+                    if (!newPond.cropType) {
+                      alert("Please select crop type");
+                      return;
+                    }
+
+                    if (!newPond.startDate) {
+                      alert("Please select start date");
+                      return;
+                    }
+
+                    // 🔥 FISH VALIDATION
+                    if (newPond.cropType === "Fish") {
+
+                      if (!newPond.rohuStock) {
+                        alert("Enter Rohu stock");
+                        return;
+                      }
+
+                      if (!newPond.katlaStock) {
+                        alert("Enter Katla stock");
+                        return;
+                      }
+
+                      if (!newPond.rohuGrams) {
+                        alert("Enter Rohu grams");
+                        return;
+                      }
+
+                      if (!newPond.katlaGrams) {
+                        alert("Enter Katla grams");
+                        return;
+                      }
+                    }
+
+                    // 🔥 SHRIMP VALIDATION
+                    if (newPond.cropType === "Shrimp") {
+
+                      if (!newPond.dobBags) {
+                        alert("Enter DOB bags");
+                        return;
+                      }
+                    }
+
+                    const selectedPond = PONDS.find(
+                      p => p.name === newPond.pondName
+                    );
+
+                    const payload = {
+                      pondId: selectedPond?.id,
+                      cropType: newPond.cropType,
+                      startDate: newPond.startDate,
+
+                      rohuStock: Number(newPond.rohuStock) || 0,
+                      katlaStock: Number(newPond.katlaStock) || 0,
+
+                      dobBags: Number(newPond.dobBags) || 0,
+
+                      rohuGrams: Number(newPond.rohuGrams) || 0,
+                      katlaGrams: Number(newPond.katlaGrams) || 0,
+                    };
+
+                    console.log(payload);
+
+                    await api("OV/pond/add", "POST", payload);
+
+                    setShowAddPondModal(false);
+
+                  } catch (err) {
+                    console.error(err);
+                    alert("Error adding pond");
+                  }
+                }}
+              >
+                Submit
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )} </>
   );
 }
 
@@ -530,7 +846,7 @@ const styles = {
   },
   gridList: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr", // 🔥 2 columns
+    gridTemplateColumns: "repeat(2, 1fr)", // 🔥 2 per row
     gap: "8px",
     marginTop: "8px",
   },
@@ -540,6 +856,8 @@ const styles = {
     padding: "8px",
     borderRadius: "6px",
     fontSize: "12px",
+    width: "100%",
+    boxSizing: "border-box",
   },
 
   date: {
@@ -681,6 +999,56 @@ const styles = {
     border: "1px solid #ddd",
     borderRadius: "6px",
     textAlign: "center",
+  },
+  eventList: {
+    margin: 0,
+    padding: 0,
+    listStyle: "disc inside",
+
+    display: "grid",
+
+    // 🔥 desktop = 2 columns
+    // 🔥 mobile = 1 column
+    gridTemplateColumns:
+      window.innerWidth <= 768
+        ? "1fr"
+        : "1fr 1fr",
+
+    gap: "12px",
+  },
+
+  eventItem: {
+    fontSize: "13px",
+    lineHeight: "1.6",
+    color: "#111",
+
+    background: "#f3f4f6",
+    borderRadius: "8px",
+
+    padding: "10px 14px",
+
+    border: "1px solid #e5e7eb",
+
+    boxShadow: "inset 0 0 0 1px #f9fafb",
+
+    wordBreak: "break-word",
+  },
+  headerButtons: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+
+  moreButton: {
+    width: "30px",
+    height: "30px",
+    borderRadius: "6px",
+    border: "none",
+    background: "#fff",
+    color: "#111",
+    cursor: "pointer",
+    fontSize: "20px",
+    fontWeight: "bold",
   },
 };
 

@@ -7,9 +7,9 @@ import java.util.logging.Logger;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.cheruvullu.start.dto.AddPondRequest;
 import com.cheruvullu.start.dto.DailyEventRequest;
 import com.cheruvullu.start.dto.OverviewDTO;
-import com.cheruvullu.start.dto.PondOverviewDTO;
 import com.cheruvullu.start.entity.DailyEvent;
 import com.cheruvullu.start.entity.FishGrowth;
 import com.cheruvullu.start.entity.InvestmentHistory;
@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/OV")
 // @CrossOrigin(origins = "http://localhost:5173")
-@CrossOrigin(origins = "https://cheruvulu-project.vercel.app")
+// @CrossOrigin(origins = "https://cheruvulu-project.vercel.app")
 @RequiredArgsConstructor
 public class OverviewController {
 
@@ -70,6 +70,21 @@ public class OverviewController {
         overViewService.saveInvestment(entity);
         return ResponseEntity.ok(
                 Map.of("message", "Investment saved successfully"));
+    }
+
+    @PostMapping("/fishgrowth")
+    public ResponseEntity<?> fishgrowth(@RequestBody FishGrowth entity) {
+        overViewService.fishgrowth(entity);
+        return ResponseEntity.ok(
+                Map.of("message", "FishGrowth saved successfully"));
+    }
+
+    @PostMapping("/pond/add")
+    public ResponseEntity<?> addPond(
+            @RequestBody AddPondRequest req) {
+
+        return ResponseEntity.ok(
+                overViewService.addPond(req));
     }
 
 }

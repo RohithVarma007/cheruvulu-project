@@ -1,6 +1,5 @@
 package com.cheruvullu.start.entity;
 
-import java.time.LocalDate;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,19 +8,17 @@ import lombok.*;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class InvestmentHistory {
+public class UpcomingEvents {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String note;
+    private String type;
+
     @ManyToOne
     @JoinColumn(name = "pond_id")
     private Pond pond;
 
-    private LocalDate date;
-    private String description;
-    private Double amount;
-
-    private String userId;
 }

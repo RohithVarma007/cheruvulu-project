@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../api/api";
 
-function InfoCards() {
+function InfoCards({ overview }) {
     const [selectedCard, setSelectedCard] = useState(null);     // for card popup
     const [selectedInvestment, setSelectedInvestment] = useState(null); // for amount popup
     const [showAddModal, setShowAddModal] = useState(false);
@@ -11,9 +11,9 @@ function InfoCards() {
     const [editIndex, setEditIndex] = useState(null);
     const [editRow, setEditRow] = useState({});
     const [showHarvestModal, setShowHarvestModal] = useState(false);
-    const [overview, setOverview] = useState(null);
-    const hasFetched = useRef(false);
     const [selectHistory, setSelectHistory] = useState([]);
+    const [editInterest, setEditInterest] = useState(false);
+    const [searchText, setSearchText] = useState("");
 
     const [harvestEntry, setHarvestEntry] = useState({
         date: "",
@@ -32,31 +32,82 @@ function InfoCards() {
         date: "",
         desc: "",
         amount: "",
+        hasInterest: false,
+        interestPercent: 18,
     });
 
     const getInitialStock = (card) => {
         return Number(card.totalStock || card.stock || 0);
     };
 
-    // const handleNetWeightAdd = () => {
-    //     if (!netWeightEntry.date || !netWeightEntry.rohu || !netWeightEntry.katla) return;
 
-    //     const updated = {
-    //         ...selectedCard,
-    //         fishHistory: [
-    //             ...(selectedCard.fishHistory || []),
-    //             {
-    //                 date: netWeightEntry.date,
-    //                 rohu: netWeightEntry.rohu,
-    //                 katla: netWeightEntry.katla,
-    //             },
-    //         ],
-    //     };
+    const handleNetWeightAdd = async () => {
+        if (!netWeightEntry.date || !netWeightEntry.rohu || !netWeightEntry.katla) {
+            return;
+        }
 
-    //     setSelectedCard(updated);
-    //     setNetWeightEntry({ date: "", rohu: "", katla: "" });
-    //     setShowNetWeightModal(false);
-    // };
+        try {
+            const payload = {
+                date: netWeightEntry.date,
+                rohuGrams: Number(netWeightEntry.rohu),
+                katlaGrams: Number(netWeightEntry.katla),
+                pond: {
+                    id: selectedCard.id
+                }
+            };
+
+            // 🔥 SAVE API
+            const res = await api("OV/fishgrowth", "POST", payload);
+
+            console.log("Fish Growth Saved:", res);
+
+            // 🔥 CLOSE POPUP
+            setShowNetWeightModal(false);
+
+            // 🔥 RESET FORM
+            setNetWeightEntry({
+                date: "",
+                rohu: "",
+                katla: "",
+            });
+
+            await loadPondDetails(selectedCard.id);
+            setShowNetWeightModal(false);
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save fish growth");
+        }
+    };
+
+    const loadPondDetails = async (pondId) => {
+        try {
+            const pondData = await api(`OV/pond/${pondId}`);
+
+            if (pondData.cropType === "Fish") {
+                const fishData = await api(`OV/fishgrowth/${pondId}`);
+
+                const formatted = fishData.map(f => ({
+                    date: f.date,
+                    rohu: f.rohuGrams,
+                    katla: f.katlaGrams
+                }));
+
+                setSelectedCard(pondData);
+                setSelectHistory(formatted);
+
+            } else if (pondData.cropType === "Shrimp") {
+
+                const shrimpData = await api(`OV/shrimpfeed/${pondId}`);
+
+                setSelectedCard(pondData);
+                setSelectHistory(shrimpData);
+            }
+
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const handleHarvestSave = () => {
         const tonnes = Number(harvestEntry.tonnes || 0);
@@ -95,6 +146,31 @@ function InfoCards() {
         });
     };
 
+    const getUserBadge = (userId) => {
+
+        const map = {
+            1: { text: "N", color: "#2563eb" },
+            2: { text: "S", color: "#16a34a" },
+            3: { text: "R", color: "#dc2626" },
+        };
+
+        return map[Number(userId)] || {
+            text: "?",
+            color: "#6b7280",
+        };
+    };
+
+    const filteredHistory = selectedInvestment?.history?.filter((h) => {
+
+        const search = searchText.toLowerCase();
+
+        return (
+            h.desc?.toLowerCase().includes(search) ||
+            String(h.amount).includes(search) ||
+            h.date?.toLowerCase().includes(search)
+        );
+    }) || [];
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -109,152 +185,8 @@ function InfoCards() {
         };
     }, []);
 
-    useEffect(() => {
-        if (hasFetched.current) return;
-        hasFetched.current = true;
-        console.log("🔥 useEffect triggered");
 
-        const fetchOverview = async () => {
-            try {
-                const data = await api("overview");
-                console.log("Overview:", data);
-                setOverview(data);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-
-        fetchOverview();
-    }, []);
-
-
-    // const data = [
-    //     {
-    //         id: 1,
-    //         place: "Mekaladibba 70 A",
-    //         feed: "85 kg/day",
-    //         startDate: "2024-04-01",
-    //         endDate: "2024-04-06",
-    //         investment: 120000,
-    //         cropType: "Fish",
-    //         stock: "r-12000,k-800",
-    //         totalFeed: "0",
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //         fishHistory: [
-    //             { date: "01 Apr", rohu: "200", katla: "800" },
-    //             { date: "03 Apr", rohu: "400", katla: "1200" },
-    //             { date: "06 Apr", rohu: "800 ", katla: "1600" },
-    //             { date: "06 Apr", rohu: "800 ", katla: "1600" },
-    //             { date: "06 Apr", rohu: "800 ", katla: "1600" },
-    //             { date: "06 Apr", rohu: "800 ", katla: "1600" },
-    //         ],
-    //         harvestHistory: [] // ✅ ADD
-    //     },
-    //     {
-    //         id: 2,
-    //         place: "Mekaladibba 80 A",
-    //         feed: "60 kg/day",
-    //         investment: 90000,
-    //         cropType: "Shrimp",
-    //         totalFeed: "1200",
-    //         stock: "300000",
-    //         startDate: "2024-04-01",
-    //         endDate: "2024-04-06",
-    //         history: [{ date: "02 Apr", desc: "Seed", amount: 30000 }],
-    //         shrimpFeedHistory: [
-    //             { date: "2026-04-13", am7: 23, am10: 25, pm1: 20, pm4: 25 }
-    //         ],
-    //         harvestHistory: [] // ✅ ADD
-    //     },
-    //     {
-    //         id: 3,
-    //         place: "Gunnapudi 75 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 7710000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 4,
-    //         place: "Kalingapeta 65 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 5,
-    //         place: "Mekaladibba 7 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 6,
-    //         place: "Mekaladibba 13 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 7,
-    //         place: "Mekaladibba 18 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 8,
-    //         place: "Mekaladibba 3 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    //     {
-    //         id: 9,
-    //         place: "Mekaladibba 1 A",
-    //         Rohu: "800 gms",
-    //         Katla: "2900 gms",
-    //         feed: "85 kg/day",
-    //         investment: 120000,
-    //         history: [
-    //             { date: "01 Apr", desc: "Seed", amount: 40000 },
-    //             { date: "03 Apr", desc: "Feed", amount: 30000 },
-    //         ],
-    //     },
-    // ];
-
+   
     const calculateDays = (start, end) => {
         const startDate = new Date(start);
         const endDate = end ? new Date(end) : new Date();
@@ -270,6 +202,12 @@ function InfoCards() {
 
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
+    const loggedInUser = JSON.parse(
+        localStorage.getItem("loggedInUser")
+    );
+
+
+
     const handleAdd = async () => {
         if (!newEntry.date || !newEntry.desc || !newEntry.amount) {
             alert("All fields are required");
@@ -281,10 +219,11 @@ function InfoCards() {
                 date: newEntry.date,
                 description: newEntry.desc,
                 amount: Number(newEntry.amount),
-                pond: { id: selectedInvestment.pondId } // 🔥 only ID
+                pond: { id: selectedInvestment.pondId }, // 🔥 only ID
+                userId: loggedInUser?.userId
             };
 
-            const res = await api("saveInvestment", "POST", payload);
+            const res = await api("OV/saveInvestment", "POST", payload);
 
             // 🔥 update UI instantly
             const newRow = {
@@ -323,7 +262,7 @@ function InfoCards() {
             {/* 🔥 TOTAL INVESTMENT */}
             <div style={styles.totalCard}>
                 <h2>Total Investment</h2>
-                <h1>₹{overview?.grandTotal?.toLocaleString() || 0}</h1>
+                <h1>₹{overview?.grandTotalInvestment?.toLocaleString() || 0}</h1>
             </div>
 
             {/* 🔥 CARDS */}
@@ -332,33 +271,7 @@ function InfoCards() {
                     <div
                         key={item.pondId}
                         style={styles.card}
-                        onClick={async () => {
-                            try {
-                                const pondData = await api(`pond/${item.pondId}`);
-
-                                if (pondData.cropType === "Fish") {
-                                    const fishData = await api(`fishgrowth/${item.pondId}`);
-
-                                    const formatted = fishData.map(f => ({
-                                        date: f.date,
-                                        rohu: f.rohuGrams,
-                                        katla: f.katlaGrams
-                                    }));
-
-                                    setSelectedCard(pondData);
-                                    setSelectHistory(formatted);
-
-                                } else if (pondData.cropType === "Shrimp") {
-                                    const shrimpData = await api(`shrimpfeed/${item.pondId}`);
-
-                                    setSelectedCard(pondData);
-                                    setSelectHistory(shrimpData);
-                                }
-
-                            } catch (err) {
-                                console.error(err);
-                            }
-                        }}
+                        onClick={() => loadPondDetails(item.pondId)}
                     >
                         <h3>{item.pondName}</h3>
 
@@ -381,13 +294,14 @@ function InfoCards() {
                                 e.stopPropagation();
 
                                 try {
-                                    const data = await api(`expensesHistroy/${item.pondId}`);
+                                    const data = await api(`OV/expensesHistroy/${item.pondId}`);
 
                                     const formattedHistory = data.map(d => ({
                                         id: d.id,
                                         date: d.date,
                                         desc: d.description || "-",
                                         amount: d.amount,
+                                        userId:d.userId,
                                     }));
 
                                     const total = formattedHistory.reduce(
@@ -399,6 +313,7 @@ function InfoCards() {
                                         ...item,
                                         history: formattedHistory,
                                         totalInvestment: total, // optional override
+
                                     });
 
                                 } catch (err) {
@@ -786,51 +701,155 @@ function InfoCards() {
                 </div>
             )}
 
-            {selectedInvestment && (
-                <div style={styles.overlay} onClick={() => setSelectedInvestment(null)}>
-                    <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                        <div style={styles.modalHeader}>
-                            <h2>{selectedInvestment.pondName} - Investment</h2>
+            {selectedInvestment && (() => {
 
-                            <div style={styles.headerActions}>
-                                <button
-                                    style={styles.addBtn}
-                                    onClick={() => setShowAddModal(true)}
-                                >
-                                    + Add
-                                </button>
+                // 🔥 calculate days from crop start till today
+                const startDate = new Date(selectedInvestment.startDate);
+                const today = new Date();
 
-                                <button
-                                    style={styles.closeIcon}
-                                    onClick={() => setSelectedInvestment(null)}
-                                >
-                                    ✖
-                                </button>
+                const days =
+                    Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+
+                // 🔥 total investment
+                const totalInvestment =
+                    selectedInvestment.totalInvestment || 0;
+
+                // 🔥 yearly 18% interest
+                const yearlyInterest = 18;
+
+                // 🔥 daily interest calculation
+                const interestAmount =
+                    (totalInvestment * yearlyInterest * days) / (100 * 365);
+
+                return (
+                    <div
+                        style={styles.overlay}
+                        onClick={() => setSelectedInvestment(null)}
+                    >
+                        <div
+                            style={styles.modal}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div style={styles.modalHeader}>
+                                <h4 style={styles.modalTitle}>
+                                    {selectedInvestment.pondName} - Investment
+                                </h4>
+
+                                <div style={styles.headerActions}>
+                                    <button
+                                        style={styles.addBtn}
+                                        onClick={() => setShowAddModal(true)}
+                                    >
+                                        + Add
+                                    </button>
+
+                                    <button
+                                        style={styles.closeIcon}
+                                        onClick={() => setSelectedInvestment(null)}
+                                    >
+                                        ✖
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        <div style={styles.table}>
-                            <div style={styles.rowHeader}>
-                                <span>Date</span>
-                                <span>Description</span>
-                                <span>Amount</span>
+                            {/* 🔥 Summary Row */}
+                            <div style={styles.summaryRow}>
+                                <div>
+                                    <strong>Total:</strong><br />
+                                    ₹{totalInvestment.toLocaleString()}
+                                </div>
+
+                                <div>
+                                    <strong>With Interest:</strong><br />
+                                    ₹{(totalInvestment + interestAmount).toFixed(0)}
+                                </div>
                             </div>
 
-                            {selectedInvestment.history?.length ? (
-                                selectedInvestment.history.map((h, i) => (
-                                    <div key={h.id || i} style={styles.row}>
-                                        <span>{h.date}</span>
-                                        <span>{h.desc}</span>
-                                        <span>₹{h.amount.toLocaleString()}</span>
-                                    </div>
-                                ))
-                            ) : (
-                                <p style={{ fontSize: "13px", color: "#777" }}>No data</p>
-                            )}
+                            <input
+                                type="text"
+                                placeholder="Search description or amount..."
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "8px",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "6px",
+                                    marginBottom: "10px",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+
+                            <div style={styles.table}>
+
+                                <div style={styles.rowHeader}>
+                                    <span>Date</span>
+                                    <span>Description</span>
+                                    <span>Amount</span>
+                                </div>
+
+                                {filteredHistory?.length ? (
+
+                                    filteredHistory.map((h, i) => {
+
+                                        const badge = getUserBadge(h.userId);
+
+                                        return (
+                                            <div key={h.id || i} style={styles.row}>
+
+                                                <span>{h.date}</span>
+
+                                                <span>{h.desc}</span>
+
+                                                <span
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "flex-end",
+                                                        gap: "8px",
+                                                    }}
+                                                >
+                                                    ₹{h.amount.toLocaleString()}
+
+                                                    <div
+                                                        style={{
+                                                            width: "18px",
+                                                            height: "18px",
+                                                            borderRadius: "50%",
+                                                            background: badge.color,
+                                                            color: "#fff",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            fontSize: "10px",
+                                                            fontWeight: "700",
+                                                            flexShrink: 0,
+                                                        }}
+                                                    >
+                                                        {badge.text}
+                                                    </div>
+                                                </span>
+
+                                            </div>
+                                        );
+                                    })
+
+                                ) : (
+                                    <p
+                                        style={{
+                                            fontSize: "13px",
+                                            color: "#777",
+                                        }}
+                                    >
+                                        No data
+                                    </p>
+                                )}
+
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* 🔥 ADD MODAL */}
             {showAddModal && (
@@ -875,6 +894,92 @@ function InfoCards() {
                                     setNewEntry({ ...newEntry, amount: e.target.value })
                                 }
                             />
+
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "10px",
+                                }}
+                            >
+                                {/* 🔥 Toggle
+                                <div
+                                    onClick={() =>
+                                        setNewEntry({
+                                            ...newEntry,
+                                            hasInterest: !newEntry.hasInterest,
+                                        })
+                                    }
+                                    style={{
+                                        width: "40px",
+                                        height: "22px",
+                                        borderRadius: "14px",
+                                        background: newEntry.hasInterest ? "rgb(37 173 7)" : "#d1d5db",
+                                        position: "relative",
+                                        cursor: "pointer",
+                                        transition: "0.3s",
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            borderRadius: "50%",
+                                            background: "#fff",
+                                            position: "absolute",
+                                            top: "3px",
+                                            left: newEntry.hasInterest ? "21px" : "3px",
+                                            transition: "0.3s",
+                                            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                                        }}
+                                    />
+                                </div> */}
+
+                                {/* <span style={{ fontSize: "14px", fontWeight: "500" }}>
+                                    Interest
+                                </span> */}
+
+                                {/* 🔥 Input + Edit button in same row
+                                {newEntry.hasInterest && (
+                                    <>
+                                        <input
+                                            type="number"
+                                            placeholder="18%"
+                                            value={newEntry.interestPercent}
+                                            disabled={!editInterest}
+                                            onChange={(e) =>
+                                                setNewEntry({
+                                                    ...newEntry,
+                                                    interestPercent: e.target.value,
+                                                })
+                                            }
+                                            style={{
+                                                ...styles.input,
+                                                margin: 0,
+                                                flex: 1,
+                                            }}
+                                        />
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditInterest(!editInterest)}
+                                            style={{
+                                                background: editInterest ? "#dc2626" : "#111827",
+                                                color: "#fff",
+                                                border: "none",
+                                                padding: "8px 12px",
+                                                borderRadius: "6px",
+                                                cursor: "pointer",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {editInterest ? "👁" : "👁"}
+                                        </button>
+                                    </>
+                                )} */}
+                            </div>
 
                             <div style={styles.actions}>
                                 <button style={styles.saveBtn} onClick={handleAdd}>
@@ -950,9 +1055,18 @@ const styles = {
         justifyContent: "space-between",
         alignItems: "center",
     },
+    modalTitle: {
+        margin: 0,
+        // whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        flex: 1,
+    },
 
     table: {
         marginTop: "15px",
+        maxHeight: "300px",
+        overflowY: "auto",
     },
 
     rowHeader: {
@@ -1091,6 +1205,17 @@ const styles = {
         width: "50px",
         padding: "4px",
         fontSize: "12px",
+    },
+    summaryRow: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        background: "#f3f4f6",
+        padding: "10px 14px",
+        borderRadius: "8px",
+        marginTop: "10px",
+        marginBottom: "12px",
+        fontSize: "14px",
     },
 
 };

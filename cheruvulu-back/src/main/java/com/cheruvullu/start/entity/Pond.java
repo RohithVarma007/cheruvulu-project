@@ -21,7 +21,7 @@ public class Pond {
     private LocalDate endDate;
     private Integer rohuStock;
     private Integer KatlaStock;
-    private Long leftStock;
+    private Integer leftStock;
     private Integer totalFeedShrimp;
     private Integer RohuDead;
     private Integer KatlaDead;
